@@ -16,10 +16,10 @@ import (
 
 var Code = flag.String("code", "", "stu number")
 var Password = flag.String("passwd", "", "pass word")
-var FstAddr = flag.String("first address", "", "first address")
-var SecAddr = flag.String("second adddress", "", " second adress")
-var ThiAddr = flag.String("Third address", "", "Third address")
-var FourthAddr = flag.String("fourth address", "", "fourth adress")
+var FstAddr = flag.String("fstaddr", "", "first address")
+var SecAddr = flag.String("secaddr", "", " second adress")
+var ThiAddr = flag.String("thiaddr", "", "Third address")
+var FourthAddr = flag.String("fthaddr", "", "fourth adress")
 
 const (
 	BD_CLIENT_ID = "uWuLMhwrtNygkORwAD9Y9bX1"
@@ -91,8 +91,8 @@ func login() ([]*http.Cookie, bool) {
 	// step3 login
 	loginUrl := "https://fangkong.hnu.edu.cn/api/v1/account/login"
 	loginData := LoginData{
-		Code:               "S1810W0721",
-		Password:           "Lichunyu521",
+		Code:               *Code,
+		Password:           *Password,
 		Token:              vcodeToken,
 		VerCode:            vcode,
 		WechatUserinfoCode: "",
@@ -104,6 +104,15 @@ func login() ([]*http.Cookie, bool) {
 	loginReq.Header.Add("Content-Type", "application/json;charset=UTF-8")
 	loginResp, _ := httpClient.Do(loginReq)
 	loginRespBody, _ := ioutil.ReadAll(loginResp.Body)
+
+	var loginRet map[string]interface{}
+
+	json.Unmarshal(loginRespBody, &loginRet)
+	loginStatus := int(loginRet["code"].(float64))
+	if loginStatus != 0 {
+		return make([]*http.Cookie, 0), false
+	}
+
 	// TODO(wangmengting), 处理验证码失败的情况
 	fmt.Println(string(loginRespBody))
 	cookies := loginResp.Cookies()
@@ -132,7 +141,7 @@ func add(cookies []*http.Cookie) {
 	httpClient := &http.Client{}
 	addUrl := "https://fangkong.hnu.edu.cn/api/v1/clockinlog/add"
 	addJsonTpl := `{"Temperature":null,"RealProvince":"%v","RealCity":"%v","RealCounty":"%v","RealAddress":"%v","IsUnusual":"0","UnusualInfo":"","IsTouch":"0","IsInsulated":"0","IsSuspected":"0","IsDiagnosis":"0","tripinfolist":[{"aTripDate":"","FromAdr":"","ToAdr":"","Number":"","trippersoninfolist":[]}],"toucherinfolist":[],"dailyinfo":{"IsVia":"0","DateTrip":""},"IsInCampus":"0","IsViaHuBei":"0","IsViaWuHan":"0","InsulatedAddress":"","TouchInfo":"","IsNormalTemperature":"1","Longitude":null,"Latitude":null}`
-	addJson := fmt.Sprintf(addJsonTpl, "吉林省", "延边朝鲜族自治州", "延吉市", "1101")
+	addJson := fmt.Sprintf(addJsonTpl, *FstAddr, *SecAddr, *ThiAddr, *FourthAddr)
 
 	cookieStr := cookieToStr(cookies)
 	addReq, _ := http.NewRequest("POST", addUrl, bytes.NewReader([]byte(addJson)))
@@ -147,7 +156,20 @@ func add(cookies []*http.Cookie) {
 }
 
 func main() {
-	cookies, _ := login()
+	flag.Parse()
+	retryTimes := 0
+	maxTryTimes := 5
+retry:
+	if retryTimes >= maxTryTimes {
+		fmt.Println("Login fail.")
+		return
+	}
+	cookies, ok := login()
+	if !ok {
+		retryTimes += 1
+		goto retry
+	}
+
 	add(cookies)
 	// check()
 	// f, _ := os.Open("imagevcode.jpg")
